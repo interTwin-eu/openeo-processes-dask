@@ -183,6 +183,7 @@ def load_stac(
     asset_scale_offset = {}
     zarr_assets = False
     use_xarray_open_kwargs = False
+    use_xarray_storage_options = False
     for asset in available_assets:
         if asset in bands:
             asset_scale = 1
@@ -202,6 +203,8 @@ def load_stac(
                     zarr_assets = True
             if "xarray:open_kwargs" in asset_dict:
                 use_xarray_open_kwargs = True
+            if "xarray:storage_options" in asset dict:
+                use_xarray_storage_options = True
             asset_scale_offset[asset] = {
                 "scale": asset_scale,
                 "offset": asset_offset,
@@ -213,7 +216,9 @@ def load_stac(
     if zarr_assets:
         if use_xarray_open_kwargs:
             datasets = [
-                xr.open_dataset(asset.href, **asset.extra_fields["xarray:open_kwargs"])
+                xr.open_dataset(asset.href, 
+                                **asset.extra_fields["xarray:open_kwargs"], 
+                                **({"storage_options": asset.extra_fields["xarray:storage_options"]} if use_xarray_storage_options else {})
                 for item in items
                 for asset in item.assets.values()
                 if 1
@@ -221,7 +226,11 @@ def load_stac(
             ]
         else:
             datasets = [
-                xr.open_dataset(asset.href, engine="zarr", consolidated=True, chunks={})
+                xr.open_dataset(asset.href, 
+                                engine="zarr", 
+                                consolidated=True, 
+                                chunks={}, 
+                                **({"storage_options": asset.extra_fields["xarray:storage_options"]} if use_xarray_storage_options else {}))
                 for item in items
                 for asset in item.assets.values()
                 if 1
