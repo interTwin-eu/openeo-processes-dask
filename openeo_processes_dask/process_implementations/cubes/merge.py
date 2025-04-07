@@ -84,7 +84,7 @@ def merge_cubes(
                     positional_parameters=positional_parameters,
                     named_parameters=named_parameters,
                 )
-                merged_cube.rio.write_crs(crs,inplace=True)
+                merged_cube.rio.write_crs(crs, inplace=True)
         else:
             # Example 1 & 2
             dims_requiring_resolve = [

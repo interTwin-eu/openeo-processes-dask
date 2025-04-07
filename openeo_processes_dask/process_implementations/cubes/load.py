@@ -215,7 +215,7 @@ def load_stac(
 
     if zarr_assets:
         datasets = []
-    
+
         for item in items:
             for asset in item.assets.values():
                 kwargs = (
@@ -223,15 +223,17 @@ def load_stac(
                     if use_xarray_open_kwargs
                     else {"engine": "zarr", "consolidated": True, "chunks": {}}
                 )
-    
+
                 if use_xarray_storage_options:
                     storage_opts = asset.extra_fields.get("xarray:storage_options", {})
-                    endpoint_url = storage_opts.get("client_kwargs", {}).get("endpoint_url")
+                    endpoint_url = storage_opts.get("client_kwargs", {}).get(
+                        "endpoint_url"
+                    )
                     if endpoint_url is not None:
                         kwargs["storage_options"] = {
                             "client_kwargs": {"endpoint_url": endpoint_url}
                         }
-    
+
                 datasets.append(xr.open_dataset(asset.href, **kwargs))
 
         stack = xr.combine_by_coords(
