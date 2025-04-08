@@ -226,12 +226,12 @@ def load_stac(
 
                 if use_xarray_storage_options:
                     storage_opts = asset.extra_fields.get("xarray:storage_options", {})
-                    endpoint_url = storage_opts.get("client_kwargs", {}).get(
-                        "endpoint_url"
+                    s3_endpoint_url = storage_opts.get("client_kwargs", {}).get(
+                        "s3_endpoint_url"
                     )
-                    if endpoint_url is not None:
+                    if s3_endpoint_url is not None:
                         kwargs["storage_options"] = {
-                            "client_kwargs": {"endpoint_url": endpoint_url}
+                            "client_kwargs": {"s3_endpoint_url": s3_endpoint_url}
                         }
 
                 datasets.append(xr.open_dataset(asset.href, **kwargs))
