@@ -257,7 +257,7 @@ def load_stac(
         )
         if not stack.rio.crs:
             stack.rio.write_crs(reference_system, inplace=True)
-        stack = stack.to_array(dim="bands")
+        stack = stack.to_dataarray(dim="bands")
     else:
         apply_nodata = True
         nodata_set = {asset_scale_offset[k]["nodata"] for k in asset_scale_offset}
