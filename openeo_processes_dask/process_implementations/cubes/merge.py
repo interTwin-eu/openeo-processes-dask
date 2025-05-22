@@ -1,8 +1,6 @@
 from typing import Callable, Optional
-
 import numpy as np
 import xarray as xr
-
 from openeo_processes_dask.process_implementations.data_model import RasterCube
 from openeo_processes_dask.process_implementations.exceptions import (
     OverlapResolverMissing,
@@ -12,11 +10,36 @@ __all__ = ["merge_cubes"]
 
 NEW_DIM_NAME = "__cubes__"
 NEW_DIM_COORDS = ["cube1", "cube2"]
-
+FLOAT_TOLERANCE = 1e-6  # Tolerance for considering float coordinates equal
 
 from collections import namedtuple
 
 Overlap = namedtuple("Overlap", ["only_in_cube1", "only_in_cube2", "in_both"])
+
+
+def _should_convert_to_float32(cube1, cube2, dim):
+    """Check if coordinates differ only by small floating-point differences."""
+    coords1 = cube1[dim].data
+    coords2 = cube2[dim].data
+    
+    # Only check if both are float64
+    if coords1.dtype != np.float64 or coords2.dtype != np.float64:
+        return False
+    
+    # Check if shapes match
+    if coords1.shape != coords2.shape:
+        return False
+    
+    # Check if differences are within tolerance
+    max_diff = np.max(np.abs(coords1 - coords2))
+    return max_diff < FLOAT_TOLERANCE
+
+
+def _convert_coords_to_float32(cube, dims):
+    """Convert specified dimensions' coordinates to float32."""
+    for dim in dims:
+        cube[dim] = cube[dim].astype(np.float32)
+    return cube
 
 
 def merge_cubes(
@@ -32,6 +55,17 @@ def merge_cubes(
             f"Provided cubes have incompatible types. cube1: {type(cube1)}, cube2: {type(cube2)}"
         )
 
+    # Check for floating-point coordinate differences that might cause issues
+    shared_dims = set(cube1.dims).intersection(set(cube2.dims))
+    dims_to_convert = [
+        dim for dim in shared_dims 
+        if _should_convert_to_float32(cube1, cube2, dim)
+    ]
+    
+    if dims_to_convert:
+        cube1 = _convert_coords_to_float32(cube1, dims_to_convert)
+        cube2 = _convert_coords_to_float32(cube2, dims_to_convert)
+
     # Key: dimension name
     # Value: (labels in cube1 not in cube2, labels in cube2 not in cube1)
     overlap_per_shared_dim = {
@@ -40,7 +74,7 @@ def merge_cubes(
             only_in_cube2=np.setdiff1d(cube2[dim].data, cube1[dim].data),
             in_both=np.intersect1d(cube1[dim].data, cube2[dim].data),
         )
-        for dim in set(cube1.dims).intersection(set(cube2.dims))
+        for dim in shared_dims
     }
 
     differing_dims = set(cube1.dims).symmetric_difference(set(cube2.dims))
