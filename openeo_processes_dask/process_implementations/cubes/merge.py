@@ -17,29 +17,38 @@ from collections import namedtuple
 Overlap = namedtuple("Overlap", ["only_in_cube1", "only_in_cube2", "in_both"])
 
 
-def _should_convert_to_float32(cube1, cube2, dim):
-    """Check if coordinates differ only by small floating-point differences."""
-    coords1 = cube1[dim].data
-    coords2 = cube2[dim].data
+def _align_coordinates(cube1: RasterCube, cube2: RasterCube) -> tuple[RasterCube, RasterCube]:
+    """Align coordinates between two cubes if they're very close numerically."""
+    shared_dims = set(cube1.dims).intersection(set(cube2.dims))
     
-    # Only check if both are float64
-    if coords1.dtype != np.float64 or coords2.dtype != np.float64:
-        return False
-    
-    # Check if shapes match
-    if coords1.shape != coords2.shape:
-        return False
-    
-    # Check if differences are within tolerance
-    max_diff = np.max(np.abs(coords1 - coords2))
-    return max_diff < FLOAT_TOLERANCE
+    for dim in shared_dims:
+        coords1 = cube1[dim].values
+        coords2 = cube2[dim].values
+        
+        # Only proceed if both coordinate arrays are float types
+        if not (np.issubdtype(coords1.dtype, np.floating) and np.issubdtype(coords2.dtype, np.floating)):
+            continue
+            
+        # Check if shapes match
+        if coords1.shape != coords2.shape:
+            continue
+            
+        # Check if maximum difference is within tolerance
+        max_diff = np.max(np.abs(coords1 - coords2))
+        if max_diff < FLOAT_TOLERANCE:
+            # Align cube2's coordinates to cube1's coordinates
+            cube2 = cube2.assign_coords({dim: cube1[dim]})
+            
+    return cube1, cube2
 
 
-def _convert_coords_to_float32(cube, dims):
-    """Convert specified dimensions' coordinates to float32."""
-    for dim in dims:
-        cube[dim] = cube[dim].astype(np.float32)
-    return cube
+def _check_and_convert_dtype(cube1: RasterCube, cube2: RasterCube) -> tuple[RasterCube, RasterCube]:
+    """Check if cubes have different float dtypes and convert float64 to float32 if needed."""
+    if cube1.dtype == np.float64 and cube2.dtype == np.float32:
+        cube1 = cube1.astype(np.float32)
+    elif cube1.dtype == np.float32 and cube2.dtype == np.float64:
+        cube2 = cube2.astype(np.float32)
+    return cube1, cube2
 
 
 def merge_cubes(
@@ -55,19 +64,15 @@ def merge_cubes(
             f"Provided cubes have incompatible types. cube1: {type(cube1)}, cube2: {type(cube2)}"
         )
 
-    # Check for floating-point coordinate differences that might cause issues
-    shared_dims = set(cube1.dims).intersection(set(cube2.dims))
-    dims_to_convert = [
-        dim for dim in shared_dims 
-        if _should_convert_to_float32(cube1, cube2, dim)
-    ]
+    # First check and convert data types if needed
+    cube1, cube2 = _check_and_convert_dtype(cube1, cube2)
     
-    if dims_to_convert:
-        cube1 = _convert_coords_to_float32(cube1, dims_to_convert)
-        cube2 = _convert_coords_to_float32(cube2, dims_to_convert)
+    # Align coordinates if they're very close numerically
+    cube1, cube2 = _align_coordinates(cube1, cube2)
 
     # Key: dimension name
     # Value: (labels in cube1 not in cube2, labels in cube2 not in cube1)
+    shared_dims = set(cube1.dims).intersection(set(cube2.dims))
     overlap_per_shared_dim = {
         dim: Overlap(
             only_in_cube1=np.setdiff1d(cube1[dim].data, cube2[dim].data),
