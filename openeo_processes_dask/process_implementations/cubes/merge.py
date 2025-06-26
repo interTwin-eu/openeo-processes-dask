@@ -51,6 +51,31 @@ def _check_and_convert_dtype(cube1: RasterCube, cube2: RasterCube) -> tuple[Rast
     return cube1, cube2
 
 
+def _expand_missing_dims(cube1: RasterCube, cube2: RasterCube) -> RasterCube:
+    """
+    Expand cube2 to include any dimensions present in cube1 but missing in cube2.
+    The expanded dimensions will use the coordinates from cube1.
+    """
+    # Find dimensions in cube1 but not in cube2
+    missing_dims = set(cube1.dims) - set(cube2.dims)
+    
+    if not missing_dims:
+        return cube2
+    
+    # Expand each missing dimension
+    expanded = cube2
+    for dim in missing_dims:
+        # Get the size and coordinates from cube1
+        dim_size = cube1.sizes[dim]
+        dim_coords = cube1.coords[dim]
+        
+        # Expand the dimension and assign coordinates
+        expanded = expanded.expand_dims(dim={dim: dim_size})
+        expanded = expanded.assign_coords({dim: dim_coords})
+    
+    return expanded
+
+
 def merge_cubes(
     cube1: RasterCube,
     cube2: RasterCube,
@@ -69,6 +94,9 @@ def merge_cubes(
     
     # Align coordinates if they're very close numerically
     cube1, cube2 = _align_coordinates(cube1, cube2)
+
+    # Expand cube2 to include any dimensions present in cube1 but missing in cube2
+    cube2 = _expand_missing_dims(cube1, cube2)
 
     # Key: dimension name
     # Value: (labels in cube1 not in cube2, labels in cube2 not in cube1)
