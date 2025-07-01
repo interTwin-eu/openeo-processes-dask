@@ -11,4 +11,5 @@ from .merge import *
 from .reduce import *
 from .resample import *
 from .datetime import *
+from .raster2stac import *
 
