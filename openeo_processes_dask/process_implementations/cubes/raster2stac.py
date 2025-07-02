@@ -3,7 +3,10 @@ from dotenv import load_dotenv
 
 import xarray as xr
 from typing import Dict, Optional, Any
-from raster2stac import Raster2STAC
+
+def get_raster2stac_class():
+    from raster2stac import Raster2STAC
+    return Raster2STAC
 
 # Default provider
 EURAC_RESEARCH_PROVIDER = {
@@ -72,7 +75,8 @@ def raster2stac(
             bucket_file_prefix=bucket_file_prefix or "",
         )
 
+    Raster2STAC = get_raster2stac_class()
     stac = Raster2STAC(**raster2stac_args)
     stac.generate_zarr_stac(item_id=item_id)
 
-    return data  # important for chaining in process graphs
+    return data
