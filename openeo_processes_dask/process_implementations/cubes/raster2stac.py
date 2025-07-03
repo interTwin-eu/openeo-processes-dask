@@ -1,4 +1,6 @@
 import os
+import json
+import requests
 from dotenv import load_dotenv
 
 import xarray as xr
@@ -32,15 +34,14 @@ def raster2stac(
     s3_endpoint_url: Optional[str] = None,
     bucket_name: Optional[str] = None,
     bucket_file_prefix: Optional[str] = "",
+    post_to_stac: bool = False,
     context: Optional[Dict[str, Any]] = None,
 ) -> xr.DataArray:
     """
     OpenEO process to generate STAC metadata from a RasterCube using Raster2STAC,
-    and return the original input unchanged to support chaining.
+    and optionally post it to a remote STAC API (collection_url).
     """
 
-    #aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
-    #aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
     load_dotenv()
     aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
     aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
@@ -78,5 +79,35 @@ def raster2stac(
     Raster2STAC = get_raster2stac_class()
     stac = Raster2STAC(**raster2stac_args)
     stac.generate_zarr_stac(item_id=item_id)
+
+    # Optional STAC POST
+    if post_to_stac:
+        base_path = os.path.join(output_folder, f"{item_id}")
+        collection_json_path = os.path.join(base_path, f"{item_id}.json")
+        items_csv_path = os.path.join(base_path, "inline_items.csv")
+
+        if not os.path.exists(collection_json_path):
+            raise FileNotFoundError(f"Collection file missing at {collection_json_path}")
+        if not os.path.exists(items_csv_path):
+            raise FileNotFoundError(f"Items file missing at {items_csv_path}")
+
+        # Delete existing collection
+        requests.delete(f"{collection_url}{item_id}")
+
+        # Post collection
+        with open(collection_json_path, "r") as f:
+            collection = json.load(f)
+        response = requests.post(collection_url, json=collection)
+        if response.status_code >= 400:
+            raise RuntimeError(f"Collection POST failed: {response.text}")
+
+        # Post items
+        with open(items_csv_path, "r") as f:
+            for line in f:
+                item = json.loads(line)
+                item_url = f"{collection_url}{item_id}/items"
+                resp = requests.post(item_url, json=item)
+                if resp.status_code >= 400:
+                    raise RuntimeError(f"Item POST failed: {resp.text}")
 
     return data
