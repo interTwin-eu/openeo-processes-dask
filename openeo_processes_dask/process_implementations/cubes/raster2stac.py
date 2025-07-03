@@ -10,7 +10,6 @@ def get_raster2stac_class():
     from raster2stac import Raster2STAC
     return Raster2STAC
 
-# Default provider
 EURAC_RESEARCH_PROVIDER = {
     "name": "Eurac Research - Institute for Earth Observation",
     "url": "http://www.eurac.edu",
@@ -21,7 +20,6 @@ def raster2stac(
     data: xr.DataArray,
     item_id: str,
     collection_url: str,
-    output_folder: str,
     description: str,
     write_collection_assets: bool = True,
     license: str = "Apache-2.0",
@@ -39,7 +37,7 @@ def raster2stac(
 ) -> xr.DataArray:
     """
     OpenEO process to generate STAC metadata from a RasterCube using Raster2STAC,
-    and optionally post it to a remote STAC API (collection_url).
+    and optionally post it to a remote STAC API. Uses item_id as output folder and collection ID.
     """
 
     load_dotenv()
@@ -56,7 +54,7 @@ def raster2stac(
         license=license,
         keywords=keywords or [],
         collection_url=collection_url,
-        output_folder=output_folder,
+        output_folder=item_id,  # Using item_id as output_folder
         providers=providers or [EURAC_RESEARCH_PROVIDER],
         sci_citation=sci_citation,
         sci_doi=sci_doi,
@@ -82,7 +80,7 @@ def raster2stac(
 
     # Optional STAC POST
     if post_to_stac:
-        base_path = os.path.join(output_folder, f"{item_id}")
+        base_path = os.path.join(item_id)
         collection_json_path = os.path.join(base_path, f"{item_id}.json")
         items_csv_path = os.path.join(base_path, "inline_items.csv")
 
@@ -91,17 +89,14 @@ def raster2stac(
         if not os.path.exists(items_csv_path):
             raise FileNotFoundError(f"Items file missing at {items_csv_path}")
 
-        # Delete existing collection
         requests.delete(f"{collection_url}{item_id}")
 
-        # Post collection
         with open(collection_json_path, "r") as f:
             collection = json.load(f)
         response = requests.post(collection_url, json=collection)
         if response.status_code >= 400:
             raise RuntimeError(f"Collection POST failed: {response.text}")
 
-        # Post items
         with open(items_csv_path, "r") as f:
             for line in f:
                 item = json.loads(line)
