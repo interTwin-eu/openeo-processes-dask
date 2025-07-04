@@ -2,9 +2,9 @@ import os
 import json
 import requests
 from dotenv import load_dotenv
-
 import xarray as xr
 from typing import Dict, Optional, Any
+from pathlib import Path
 
 def get_raster2stac_class():
     from raster2stac import Raster2STAC
@@ -34,18 +34,28 @@ def raster2stac(
     bucket_file_prefix: Optional[str] = "",
     post_to_stac: bool = False,
     context: Optional[Dict[str, Any]] = None,
+    output_folder: Optional[str] = None,
 ) -> xr.DataArray:
     """
     OpenEO process to generate STAC metadata from a RasterCube using Raster2STAC,
     and optionally post it to a remote STAC API. Uses item_id as output folder and collection ID.
+    
+    Args:
+        output_folder: If provided, the output will be saved in this directory under a subfolder
+                      named with the item_id. If not provided, defaults to the item_id as the folder name.
     """
-
     load_dotenv()
     aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
     aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
 
     if s3_upload and (not aws_key or not aws_secret):
         raise RuntimeError("Missing AWS credentials in environment for S3 upload.")
+
+    # Determine output path
+    if output_folder is not None:
+        output_path = str(Path(output_folder) / item_id)
+    else:
+        output_path = item_id
 
     raster2stac_args = dict(
         data=data,
@@ -54,7 +64,7 @@ def raster2stac(
         license=license,
         keywords=keywords or [],
         collection_url=collection_url,
-        output_folder=item_id,  # Using item_id as output_folder
+        output_folder=output_path,  # Using combined path as output_folder
         providers=providers or [EURAC_RESEARCH_PROVIDER],
         sci_citation=sci_citation,
         sci_doi=sci_doi,
@@ -80,7 +90,7 @@ def raster2stac(
 
     # Optional STAC POST
     if post_to_stac:
-        base_path = os.path.join(item_id)
+        base_path = output_path
         collection_json_path = os.path.join(base_path, f"{item_id}.json")
         items_csv_path = os.path.join(base_path, "inline_items.csv")
 
