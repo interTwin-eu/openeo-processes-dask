@@ -42,15 +42,6 @@ def _align_coordinates(cube1: RasterCube, cube2: RasterCube) -> tuple[RasterCube
     return cube1, cube2
 
 
-def _check_and_convert_dtype(cube1: RasterCube, cube2: RasterCube) -> tuple[RasterCube, RasterCube]:
-    """Check if cubes have different float dtypes and convert float64 to float32 if needed."""
-    if cube1.dtype == np.float64 and cube2.dtype == np.float32:
-        cube1 = cube1.astype(np.float32)
-    elif cube1.dtype == np.float32 and cube2.dtype == np.float64:
-        cube2 = cube2.astype(np.float32)
-    return cube1, cube2
-
-
 def _expand_missing_dims(cube1: RasterCube, cube2: RasterCube) -> RasterCube:
     """
     Expand cube2 to include any dimensions present in cube1 but missing in cube2.
@@ -88,9 +79,6 @@ def merge_cubes(
         raise Exception(
             f"Provided cubes have incompatible types. cube1: {type(cube1)}, cube2: {type(cube2)}"
         )
-
-    # First check and convert data types if needed
-    cube1, cube2 = _check_and_convert_dtype(cube1, cube2)
     
     # Align coordinates if they're very close numerically
     cube1, cube2 = _align_coordinates(cube1, cube2)
